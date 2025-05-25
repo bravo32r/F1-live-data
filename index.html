@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live F1 Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #0d1117;
+      color: #c9d1d9;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #58a6ff;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1em;
+    }
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid #30363d;
+      text-align: left;
+    }
+    th {
+      background-color: #161b22;
+    }
+    tr:hover {
+      background-color: #21262d;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>🏎️ Live F1 Fahrerpositionen</h1>
+  <p>Aktualisiert alle 10 Sekunden</p>
+  <div id="error" class="error"></div>
+  <table id="positions">
+    <thead>
+      <tr>
+        <th>Position</th>
+        <th>Fahrer</th>
+        <th>Team</th>
+        <th>Rundenzeit</th>
+        <th>Letztes Update</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function fetchPositions() {
+      try {
+        const sessionRes = await fetch('https://api.openf1.org/v1/sessions?session_key=latest');
+        const sessionData = await sessionRes.json();
+        if (!sessionData.length) throw new Error("Keine aktuelle Session gefunden.");
+        const sessionKey = sessionData[0].session_key;
+
+        const posRes = await fetch(`https://api.openf1.org/v1/position?session_key=${sessionKey}`);
+        const posData = await posRes.json();
+
+        const driverRes = await fetch('https://api.openf1.org/v1/drivers');
+        const driverData = await driverRes.json();
+        const driverMap = {};
+        driverData.forEach(d => {
+          driverMap[d.driver_number] = {
+            name: `${d.full_name}`,
+            team: d.team_name
+          };
+        });
+
+        const tbody = document.querySelector("#positions tbody");
+        tbody.innerHTML = "";
+
+        posData.sort((a, b) => a.position - b.position).forEach(entry => {
+          const driver = driverMap[entry.driver_number] || { name: "Unbekannt", team: "?" };
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${entry.position}</td>
+            <td>${driver.name}</td>
+            <td>${driver.team}</td>
+            <td>${entry.lap_time || "–"}</td>
+            <td>${new Date(entry.date).toLocaleTimeString()}</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        document.getElementById("error").textContent = "";
+      } catch (err) {
+        document.getElementById("error").textContent = "Fehler beim Laden der Daten: " + err.message;
+      }
+    }
+
+    fetchPositions();
+    setInterval(fetchPositions, 1000);
+  </script>
+</body>
+</html>
